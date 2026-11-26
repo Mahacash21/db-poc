@@ -1,0 +1,9 @@
+# Copy this file to terraform.tfvars and change the passwords.
+# terraform.tfvars is in .gitignore, so it never reaches GitHub.
+
+pg_admin_password = "change-me-admin-Pw1"
+app_password      = "change-me-app-Pw1"
+
+# Optional overrides
+# host_port = 5433
+# docker_host = "npipe:////./pipe/docker_engine"   # only if Terraform can't find Docker Desktop

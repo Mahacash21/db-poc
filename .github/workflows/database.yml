@@ -1,0 +1,68 @@
+# The GitHub equivalent of an Azure DevOps pipeline.
+#
+# On every push and pull request it proves the whole chain works:
+# Terraform builds a throwaway Postgres inside the GitHub runner,
+# Liquibase applies every change, tests a rollback, and then
+# everything is destroyed. Nothing touches your laptop.
+name: database-pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Repository secrets if you've set them, otherwise throwaway CI values.
+  # (Settings > Secrets and variables > Actions > New repository secret)
+  TF_VAR_pg_admin_password: ${{ secrets.PG_ADMIN_PASSWORD || 'ci-admin-Password1' }}
+  TF_VAR_app_password: ${{ secrets.PG_APP_PASSWORD || 'ci-app-Password1' }}
+  LIQUIBASE_IMAGE: liquibase:4.33.0
+
+jobs:
+  build-database:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false # keeps `terraform output -raw` clean for scripts
+
+      - name: Terraform format, init and validate
+        working-directory: terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -input=false
+          terraform validate
+
+      - name: Terraform apply (Postgres in the runner)
+        working-directory: terraform
+        run: terraform apply -auto-approve -input=false
+
+      - name: Liquibase validate
+        run: |
+          chmod +x scripts/liquibase.sh
+          ./scripts/liquibase.sh validate
+
+      - name: Liquibase status (pending changes)
+        run: ./scripts/liquibase.sh status --verbose
+
+      - name: Liquibase update
+        run: ./scripts/liquibase.sh update
+
+      - name: Show tables
+        run: docker exec poc-postgres psql -U app_user -d appdb -c '\dt'
+
+      - name: Test that the last change rolls back, then re-apply it
+        run: |
+          ./scripts/liquibase.sh rollback-count --count=1
+          ./scripts/liquibase.sh update
+
+      - name: Terraform destroy
+        if: always()
+        working-directory: terraform
+        run: terraform destroy -auto-approve -input=false

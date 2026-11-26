@@ -1,0 +1,13 @@
+# Master changelog: the ordered list of every schema change.
+# Add new changes by creating a new file in changes/ and listing it at the
+# bottom. Never edit a file that has already been applied: add a new one.
+databaseChangeLog:
+  - include:
+      file: changes/001-create-customers.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/002-create-orders.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/003-seed-customers.sql
+      relativeToChangelogFile: true
